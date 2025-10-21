@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Model Generator - Image to STL & Cookie Cutter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a0b2e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #e0e2f0;
+        }
+        
+        .container {
+            background: rgba(26, 31, 58, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+        
+        h1 {
+            color: #ffffff;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+            text-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+        }
+        
+        .subtitle {
+            color: #a0a5bd;
+            font-size: 1em;
+            margin-bottom: 20px;
+        }
+        
+        /* Tab System */
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            background: rgba(37, 43, 74, 0.5);
+            padding: 8px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 12px 20px;
+            background: transparent;
+            color: #a0a5bd;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .tab-button:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .tab-button.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: rgba(102, 126, 234, 0.5);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 20px;
+        }
+        
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-height: 75vh;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.5);
+            border-radius: 4px;
+        }
+        
+        .panel {
+            background: rgba(37, 43, 74, 0.8);
+            padding: 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+        
+        .panel h3 {
+            color: #667eea;
+            margin-bottom: 12px;
+            font-size: 1em;
+            font-weight: 600;
+        }
+        
+        .viewer-container {
+            position: relative;
+            background: #0a0e27;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+        
+        #canvasContainer {
+            width: 100%;
+            height: 70vh;
+            position: relative;
+        }
+        
+        .viewer-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 10;
+        }
+        
+        .rotation-controls {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(37, 43, 74, 0.9);
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            z-index: 10;
+        }
+        
+        .rotation-controls h4 {
+            color: #667eea;
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        
+        .rotation-row {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .rotation-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        button {
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            background: #3a4060;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        button.secondary {
+            background: rgba(45, 52, 84, 0.8);
+        }
+        
+        button.secondary:hover:not(:disabled) {
+            background: rgba(58, 64, 96, 0.9);
+        }
+        
+        button.small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        button.success {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: #e0e2f0;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        
+        .help-text {
+            font-size: 0.75em;
+            color: #a0a5bd;
+            margin-top: 4px;
+            font-style: italic;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: rgba(58, 64, 96, 0.5);
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+        }
+        
+        .value-display {
+            display: inline-block;
+            background: rgba(102, 126, 234, 0.2);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            color: #667eea;
+            margin-left: 10px;
+            font-size: 0.9em;
+        }
+        
+        .upload-zone {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(102, 126, 234, 0.05);
+        }
+        
+        .upload-zone:hover {
+            background: rgba(102, 126, 234, 0.15);
+            border-color: #764ba2;
+        }
+        
+        .upload-zone.dragover {
+            background: rgba(102, 126, 234, 0.25);
+            border-color: #5a67d8;
+        }
+        
+        #fileInput, #cookieImageInput {
+            display: none;
+        }
+        
+        .preview-container {
+            margin-top: 15px;
+            text-align: center;
+        }
+        
+        #imagePreview, #cookiePreview {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        .status-indicator {
+            padding: 12px;
+            background: rgba(102, 126, 234, 0.15);
+            border-radius: 8px;
+            margin-top: 15px;
+            text-align: center;
+            font-size: 0.9em;
+            border-left: 4px solid #667eea;
+        }
+        
+        .status-indicator.success {
+            background: rgba(34, 197, 94, 0.15);
+            border-left-color: #22c55e;
+        }
+        
+        .status-indicator.warning {
+            background: rgba(245, 158, 11, 0.15);
+            border-left-color: #f59e0b;
+        }
+        
+        .status-indicator.error {
+            background: rgba(239, 68, 68, 0.15);
+            border-left-color: #ef4444;
+        }
+        
+        .info-box {
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.85em;
+            color: #a0a5bd;
+            margin-top: 10px;
+        }
+        
+        .info-box strong {
+            color: #667eea;
+        }
+        
+        .measurements {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .measurement-item {
+            background: rgba(37, 43, 74, 0.5);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .measurement-label {
+            display: block;
+            font-size: 0.75em;
+            color: #a0a5bd;
+            margin-bottom: 5px;
+        }
+        
+        .measurement-value {
+            display: block;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .flat-indicator {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .flat-indicator.yes {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        
+        .flat-indicator.no {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+        }
+        
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 15px;
+        }
+        
+        .preset-button {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+        
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 3D Model Generator Pro</h1>
+        <p class="subtitle">Convert images to 3D models with precision control</p>
+        
+        <div class="tab-buttons">
+            <button class="tab-button active" data-tab="stl-gen">STL Generator</button>
+            <button class="tab-button" data-tab="cookie-cutter">Cookie Cutter</button>
+        </div>
+        
+        <!-- STL Generator Tab -->
+        <div class="tab-content active" id="stl-gen">
+            <div class="main-grid">
+                <div class="sidebar">
+                    <div class="panel">
+                        <h3>📁 Upload Image</h3>
+                        <div class="upload-zone" id="uploadZone">
+                            <p style="font-size: 3em; margin-bottom: 10px;">📁</p>
+                            <p style="font-weight: bold;">Click or drag image here</p>
+                            <p style="opacity: 0.7; margin-top: 8px; font-size: 0.9em;">JPG, PNG, GIF supported</p>
+                        </div>
+                        <input type="file" id="fileInput" accept="image/*">
+                        <div class="preview-container">
+                            <img id="imagePreview" style="display: none;">
+                        </div>
+                    </div>
+                    
+                    <div class="panel">
+                        <h3>⚙️ Model Settings</h3>
+                        
+                        <div class="control-group">
+                            <label>
+                                Extrusion Height
+                                <span class="value-display" id="extrusionValue">10 mm</span>
+                            </label>
+                            <input type="range" id="extrusion" min="1" max="50" value="10">
+                            <p class="help-text">How tall the 3D model will be</p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label>
+                                Model Scale
+                                <span class="value-display" id="scaleValue">100%</span>
+                            </label>
+                            <input type="range" id="modelScale" min="10" max="300" value="100" step="10">
+                            <p class="help-text">Resize the final model</p>
+                        </div>
+                        
+                        <button id="generateBtn" disabled class="success">
+                            🚀 Generate 3D Model
+                        </button>
+                        
+                        <div class="info-box">
+                            <strong>💡 Default settings work great!</strong> Just upload an image and click Generate. The algorithm automatically extracts clean silhouettes.
+                        </div>
+                    </div>
+                    
+                    <div class="panel">
+                        <h3>💾 Export Model</h3>
+                        <div class="measurements">
+                            <div class="measurement-item">
+                                <span class="measurement-label">Width</span>
+                                <span class="measurement-value" id="widthMeasure">--</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">Depth</span>
+                                <span class="measurement-value" id="depthMeasure">--</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">Height</span>
+                                <span class="measurement-value" id="heightMeasure">--</span>
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center; margin: 10px 0;">
+                            <strong>Flat on Build Plate:</strong>
+                            <span class="flat-indicator yes" id="flatIndicator">✓ YES</span>
+                        </div>
+                        
+                        <button id="exportBtn" disabled class="success">
+                            Download STL File
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="viewer-container">
+                    <div id="canvasContainer"></div>
+                    
+                    <div class="viewer-controls">
+                        <button class="secondary small" id="toggleGrid">Toggle Grid</button>
+                        <button class="secondary small" id="toggleRotate">Auto-Rotate: OFF</button>
+                        <button class="secondary small" id="resetView">Reset View</button>
+                    </div>
+                    
+                    <div class="rotation-controls">
+                        <h4>Rotate Model</h4>
+                        <div class="rotation-row">
+                            <button class="small" id="rotYLeft">← Y</button>
+                            <button class="small" id="rotYRight">Y →</button>
+                        </div>
+                        <div class="rotation-row">
+                            <button class="small" id="rotXUp">↑ X</button>
+                            <button class="small" id="rotXDown">X ↓</button>
+                        </div>
+                        <div class="rotation-row">
+                            <button class="small" id="rotZLeft">⤹ Z</button>
+                            <button class="small" id="rotZRight">Z ⤸</button>
+                        </div>
+                    </div>
+                    
+                    <div class="status-indicator" id="status">
+                        Upload an image to begin
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Cookie Cutter Tab -->
+        <div class="tab-content" id="cookie-cutter">
+            <div class="main-grid">
+                <div class="sidebar">
+                    <div class="panel">
+                        <h3>📁 Upload Image</h3>
+                        <div class="upload-zone" id="cookieUploadZone">
+                            <p style="font-size: 3em; margin-bottom: 10px;">🍪</p>
+                            <p style="font-weight: bold;">Click or drag image here</p>
+                            <p style="opacity: 0.7; margin-top: 8px; font-size: 0.9em;">Upload shape for cookie cutter</p>
+                        </div>
+                        <input type="file" id="cookieImageInput" accept="image/*">
+                        <div class="preview-container">
+                            <img id="cookiePreview" style="display: none;">
+                        </div>
+                    </div>
+                    
+                    <div class="panel">
+                        <h3>⚙️ Cookie Cutter Settings</h3>
+                        
+                        <div class="control-group">
+                            <label>
+                                Blade Thickness
+                                <span class="value-display" id="bladeThickValue">1.2 mm</span>
+                            </label>
+                            <input type="range" id="bladeThick" min="0.5" max="5" value="1.2" step="0.1">
+                            <p class="help-text">Width of the cutting edge</p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label>
+                                Blade Height
+                                <span class="value-display" id="bladeHeightValue">20 mm</span>
+                            </label>
+                            <input type="range" id="bladeHeight" min="5" max="50" value="20">
+                            <p class="help-text">How deep it cuts</p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label>
+                                Base Thickness
+                                <span class="value-display" id="baseThickValue">3 mm</span>
+                            </label>
+                            <input type="range" id="baseThick" min="1" max="10" value="3">
+                            <p class="help-text">Handle thickness</p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label>
+                                Base Extension
+                                <span class="value-display" id="baseExtValue">10 mm</span>
+                            </label>
+                            <input type="range" id="baseExt" min="0" max="30" value="10">
+                            <p class="help-text">Handle extends beyond cutting edge</p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label>
+                                Overall Size
+                                <span class="value-display" id="cookieSizeValue">80 mm</span>
+                            </label>
+                            <input type="range" id="cookieSize" min="30" max="150" value="80" step="5">
+                            <p class="help-text">Auto-scales to fit</p>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="includeBase" checked>
+                            <label for="includeBase">Include Base/Handle (uncheck for stamp mode)</label>
+                        </div>
+                        
+                        <div class="preset-buttons">
+                            <button class="preset-button" id="presetSmall">Small (50mm)</button>
+                            <button class="preset-button" id="presetMedium">Medium (80mm)</button>
+                            <button class="preset-button" id="presetLarge">Large (120mm)</button>
+                            <button class="preset-button" id="presetStamp">Stamp Mode</button>
+                        </div>
+                        
+                        <button id="generateCookieBtn" disabled class="success" style="margin-top: 15px;">
+                            🍪 Generate Cookie Cutter
+                        </button>
+                    </div>
+                    
+                    <div class="panel">
+                        <h3>💾 Export Cookie Cutter</h3>
+                        <div class="measurements">
+                            <div class="measurement-item">
+                                <span class="measurement-label">Width</span>
+                                <span class="measurement-value" id="cookieWidthMeasure">--</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">Depth</span>
+                                <span class="measurement-value" id="cookieDepthMeasure">--</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">Height</span>
+                                <span class="measurement-value" id="cookieHeightMeasure">--</span>
+                            </div>
+                        </div>
+                        
+                        <button id="exportCookieBtn" disabled class="success">
+                            Download Cookie Cutter STL
+                        </button>
+                        <button class="secondary" id="resetCookieBtn" style="margin-top: 8px;">
+                            Reset to Defaults
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="viewer-container">
+                    <!-- Shares same canvas -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+        
+        // Global variables
+        let scene, camera, renderer;
+        let currentMesh = null;
+        let gridHelper = null;
+        let autoRotating = false;
+        let imageData = null;
+        let cookieImageData = null;
+        
+        // Initialize Three.js Scene
+        function initThreeJS() {
+            const container = document.getElementById('canvasContainer');
+            
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0e27);
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(
+                50,
+                container.clientWidth / container.clientHeight,
+                0.1,
+                2000
+            );
+            camera.position.set(0, 80, 120);
+            camera.lookAt(0, 0, 0);
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+            
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight1.position.set(50, 100, 50);
+            scene.add(directionalLight1);
+            
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+            directionalLight2.position.set(-50, 50, -50);
+            scene.add(directionalLight2);
+            
+            // Grid
+            gridHelper = new THREE.GridHelper(200, 20, 0x667eea, 0x2a3555);
+            scene.add(gridHelper);
+            
+            // Handle resize
+            window.addEventListener('resize', () => {
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(width, height);
+            });
+            
+            animate();
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (autoRotating && currentMesh) {
+                currentMesh.rotation.y += 0.01;
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // ============================================
+        // ROBUST IMAGE PROCESSING - Research-Based
+        // ============================================
+        
+        function preprocessImage(img) {
+            const canvas = document.createElement('canvas');
+            const maxSize = 800;
+            let width = img.width;
+            let height = img.height;
+            
+            // Resize if too large
+            if (width > maxSize || height > maxSize) {
+                const scale = maxSize / Math.max(width, height);
+                width *= scale;
+                height *= scale;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            
+            // Convert to grayscale
+            const gray = new Uint8Array(width * height);
+            for (let i = 0; i < data.length; i += 4) {
+                gray[i / 4] = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            }
+            
+            // Gaussian blur (reduces noise/jaggedness)
+            const blurred = gaussianBlur(gray, width, height, 2);
+            
+            // Auto threshold
+            const threshold = otsuThreshold(blurred);
+            
+            // Binary threshold
+            const binary = new Uint8Array(blurred.length);
+            for (let i = 0; i < blurred.length; i++) {
+                binary[i] = blurred[i] > threshold ? 255 : 0;
+            }
+            
+            // CRITICAL: Morphological closing (fills spots/patterns)
+            const closed = morphologicalClose(binary, width, height, 9);
+            
+            return { data: closed, width, height };
+        }
+        
+        function gaussianBlur(data, width, height, radius) {
+            const kernel = createGaussianKernel(radius);
+            const result = new Uint8Array(data.length);
+            const kernelSize = kernel.length;
+            const half = Math.floor(kernelSize / 2);
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let sum = 0, weightSum = 0;
+                    
+                    for (let ky = 0; ky < kernelSize; ky++) {
+                        for (let kx = 0; kx < kernelSize; kx++) {
+                            const py = y + ky - half;
+                            const px = x + kx - half;
+                            
+                            if (px >= 0 && px < width && py >= 0 && py < height) {
+                                const weight = kernel[ky][kx];
+                                sum += data[py * width + px] * weight;
+                                weightSum += weight;
+                            }
+                        }
+                    }
+                    
+                    result[y * width + x] = sum / weightSum;
+                }
+            }
+            
+            return result;
+        }
+        
+        function createGaussianKernel(radius) {
+            const size = radius * 2 + 1;
+            const kernel = [];
+            const sigma = radius / 2;
+            let sum = 0;
+            
+            for (let y = 0; y < size; y++) {
+                kernel[y] = [];
+                for (let x = 0; x < size; x++) {
+                    const dx = x - radius;
+                    const dy = y - radius;
+                    const value = Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+                    kernel[y][x] = value;
+                    sum += value;
+                }
+            }
+            
+            // Normalize
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    kernel[y][x] /= sum;
+                }
+            }
+            
+            return kernel;
+        }
+        
+        function otsuThreshold(data) {
+            const histogram = new Array(256).fill(0);
+            for (let i = 0; i < data.length; i++) {
+                histogram[Math.floor(data[i])]++;
+            }
+            
+            const total = data.length;
+            let sum = 0;
+            for (let i = 0; i < 256; i++) sum += i * histogram[i];
+            
+            let sumB = 0, wB = 0, wF = 0;
+            let maxVariance = 0, threshold = 0;
+            
+            for (let t = 0; t < 256; t++) {
+                wB += histogram[t];
+                if (wB === 0) continue;
+                wF = total - wB;
+                if (wF === 0) break;
+                
+                sumB += t * histogram[t];
+                const mB = sumB / wB;
+                const mF = (sum - sumB) / wF;
+                const variance = wB * wF * (mB - mF) * (mB - mF);
+                
+                if (variance > maxVariance) {
+                    maxVariance = variance;
+                    threshold = t;
+                }
+            }
+            
+            return threshold;
+        }
+        
+        function morphologicalClose(data, width, height, kernelSize) {
+            const dilated = dilate(data, width, height, kernelSize);
+            return erode(dilated, width, height, kernelSize);
+        }
+        
+        function dilate(data, width, height, kernelSize) {
+            const result = new Uint8Array(data.length);
+            const half = Math.floor(kernelSize / 2);
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let maxVal = 0;
+                    
+                    for (let ky = -half; ky <= half; ky++) {
+                        for (let kx = -half; kx <= half; kx++) {
+                            const py = y + ky;
+                            const px = x + kx;
+                            
+                            if (px >= 0 && px < width && py >= 0 && py < height) {
+                                maxVal = Math.max(maxVal, data[py * width + px]);
+                            }
+                        }
+                    }
+                    
+                    result[y * width + x] = maxVal;
+                }
+            }
+            
+            return result;
+        }
+        
+        function erode(data, width, height, kernelSize) {
+            const result = new Uint8Array(data.length);
+            const half = Math.floor(kernelSize / 2);
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let minVal = 255;
+                    
+                    for (let ky = -half; ky <= half; ky++) {
+                        for (let kx = -half; kx <= half; kx++) {
+                            const py = y + ky;
+                            const px = x + kx;
+                            
+                            if (px >= 0 && px < width && py >= 0 && py < height) {
+                                minVal = Math.min(minVal, data[py * width + px]);
+                            }
+                        }
+                    }
+                    
+                    result[y * width + x] = minVal;
+                }
+            }
+            
+            return result;
+        }
+        
+        // Extract ONLY outer contour
+        function findOuterContour(imageData) {
+            const { data, width, height } = imageData;
+            
+            // Find connected components
+            const labeled = new Int32Array(data.length).fill(-1);
+            let currentLabel = 0;
+            const components = [];
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = y * width + x;
+                    if (data[idx] === 0 && labeled[idx] === -1) {
+                        const component = floodFill(data, labeled, width, height, x, y, currentLabel);
+                        components.push({ label: currentLabel, pixels: component });
+                        currentLabel++;
+                    }
+                }
+            }
+            
+            if (components.length === 0) return [];
+            
+            // Find largest component
+            let largestComponent = components[0];
+            for (const comp of components) {
+                if (comp.pixels.length > largestComponent.pixels.length) {
+                    largestComponent = comp;
+                }
+            }
+            
+            // Extract boundary points
+            const boundaryPoints = extractBoundary(labeled, width, height, largestComponent.label);
+            
+            return boundaryPoints;
+        }
+        
+        function floodFill(data, labeled, width, height, startX, startY, label) {
+            const pixels = [];
+            const stack = [[startX, startY]];
+            
+            while (stack.length > 0) {
+                const [x, y] = stack.pop();
+                const idx = y * width + x;
+                
+                if (x < 0 || x >= width || y < 0 || y >= height) continue;
+                if (labeled[idx] !== -1 || data[idx] !== 0) continue;
+                
+                labeled[idx] = label;
+                pixels.push([x, y]);
+                
+                // 4-connectivity
+                stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+            }
+            
+            return pixels;
+        }
+        
+        function extractBoundary(labeled, width, height, targetLabel) {
+            const boundary = [];
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = y * width + x;
+                    
+                    if (labeled[idx] === targetLabel) {
+                        let isBoundary = false;
+                        
+                        for (let dy = -1; dy <= 1 && !isBoundary; dy++) {
+                            for (let dx = -1; dx <= 1; dx++) {
+                                const nx = x + dx;
+                                const ny = y + dy;
+                                
+                                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                    if (labeled[ny * width + nx] !== targetLabel) {
+                                        isBoundary = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (isBoundary) {
+                            boundary.push([x, y]);
+                        }
+                    }
+                }
+            }
+            
+            return orderBoundaryPoints(boundary);
+        }
+        
+        function orderBoundaryPoints(points) {
+            if (points.length === 0) return [];
+            
+            const ordered = [points[0]];
+            const remaining = new Set(points.slice(1).map((p, i) => i + 1));
+            
+            while (remaining.size > 0) {
+                const last = ordered[ordered.length - 1];
+                let nearest = null;
+                let nearestDist = Infinity;
+                let nearestIdx = -1;
+                
+                for (const idx of remaining) {
+                    const p = points[idx];
+                    const dist = (p[0] - last[0]) ** 2 + (p[1] - last[1]) ** 2;
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearest = p;
+                        nearestIdx = idx;
+                    }
+                }
+                
+                if (nearest && nearestDist < 100) {
+                    ordered.push(nearest);
+                    remaining.delete(nearestIdx);
+                } else {
+                    break;
+                }
+            }
+            
+            return ordered;
+        }
+        
+        // RDP Simplification
+        function simplifyRDP(points, epsilon) {
+            if (points.length < 3) return points;
+            
+            let maxDist = 0, maxIndex = 0;
+            const first = points[0];
+            const last = points[points.length - 1];
+            
+            for (let i = 1; i < points.length - 1; i++) {
+                const dist = perpendicularDistance(points[i], first, last);
+                if (dist > maxDist) {
+                    maxDist = dist;
+                    maxIndex = i;
+                }
+            }
+            
+            if (maxDist > epsilon) {
+                const left = simplifyRDP(points.slice(0, maxIndex + 1), epsilon);
+                const right = simplifyRDP(points.slice(maxIndex), epsilon);
+                return left.slice(0, -1).concat(right);
+            } else {
+                return [first, last];
+            }
+        }
+        
+        function perpendicularDistance(point, lineStart, lineEnd) {
+            const [x, y] = point;
+            const [x1, y1] = lineStart;
+            const [x2, y2] = lineEnd;
+            
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const lenSq = dx * dx + dy * dy;
+            
+            if (lenSq === 0) return Math.sqrt((x - x1) ** 2 + (y - y1) ** 2);
+            
+            const t = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / lenSq));
+            const projX = x1 + t * dx;
+            const projY = y1 + t * dy;
+            
+            return Math.sqrt((x - projX) ** 2 + (y - projY) ** 2);
+        }
+        
+        // Chaikin Smoothing
+        function smoothChaikin(points, iterations) {
+            let smoothed = points.slice();
+            
+            for (let iter = 0; iter < iterations; iter++) {
+                const newPoints = [];
+                
+                for (let i = 0; i < smoothed.length; i++) {
+                    const p1 = smoothed[i];
+                    const p2 = smoothed[(i + 1) % smoothed.length];
+                    
+                    newPoints.push([
+                        0.75 * p1[0] + 0.25 * p2[0],
+                        0.75 * p1[1] + 0.25 * p2[1]
+                    ]);
+                    newPoints.push([
+                        0.25 * p1[0] + 0.75 * p2[0],
+                        0.25 * p1[1] + 0.75 * p2[1]
+                    ]);
+                }
+                
+                smoothed = newPoints;
+            }
+            
+            return smoothed;
+        }
+        
+        // Create watertight 3D mesh
+        function createWatertightMesh(points, depth, scale) {
+            if (points.length < 3) return null;
+            
+            // Calculate bounds for centering
+            let minX = Infinity, maxX = -Infinity;
+            let minY = Infinity, maxY = -Infinity;
+            
+            points.forEach(p => {
+                minX = Math.min(minX, p[0]);
+                maxX = Math.max(maxX, p[0]);
+                minY = Math.min(minY, p[1]);
+                maxY = Math.max(maxY, p[1]);
+            });
+            
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            const size = Math.max(maxX - minX, maxY - minY);
+            const scaleFactor = (50 * scale / 100) / size;
+            
+            // Create shape
+            const shape = new THREE.Shape();
+            points.forEach((p, i) => {
+                const x = (p[0] - centerX) * scaleFactor;
+                const y = (p[1] - centerY) * scaleFactor;
+                
+                if (i === 0) {
+                    shape.moveTo(x, y);
+                } else {
+                    shape.lineTo(x, y);
+                }
+            });
+            shape.lineTo((points[0][0] - centerX) * scaleFactor, (points[0][1] - centerY) * scaleFactor);
+            
+            // Extrude (creates watertight mesh automatically)
+            const geometry = new THREE.ExtrudeGeometry(shape, {
+                depth: depth,
+                bevelEnabled: false,
+                steps: 1,
+                curveSegments: 12
+            });
+            
+            // CRITICAL: Rotate to lay flat on build plate
+            geometry.rotateX(-Math.PI / 2);
+            
+            geometry.computeVertexNormals();
+            
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x667eea,
+                specular: 0x444444,
+                shininess: 80,
+                side: THREE.DoubleSide
+            });
+            
+            return new THREE.Mesh(geometry, material);
+        }
+        
+        // STL Export
+        function exportSTL(mesh) {
+            const geometry = mesh.geometry;
+            const position = geometry.attributes.position;
+            const index = geometry.index;
+            
+            let stl = 'solid model\n';
+            
+            const vertices = [];
+            for (let i = 0; i < position.count; i++) {
+                vertices.push(new THREE.Vector3(
+                    position.getX(i),
+                    position.getY(i),
+                    position.getZ(i)
+                ));
+            }
+            
+            const faces = [];
+            if (index) {
+                for (let i = 0; i < index.count; i += 3) {
+                    faces.push([index.getX(i), index.getX(i + 1), index.getX(i + 2)]);
+                }
+            } else {
+                for (let i = 0; i < vertices.length; i += 3) {
+                    faces.push([i, i + 1, i + 2]);
+                }
+            }
+            
+            faces.forEach(face => {
+                const v1 = vertices[face[0]];
+                const v2 = vertices[face[1]];
+                const v3 = vertices[face[2]];
+                
+                const normal = new THREE.Vector3();
+                const edge1 = new THREE.Vector3().subVectors(v2, v1);
+                const edge2 = new THREE.Vector3().subVectors(v3, v1);
+                normal.crossVectors(edge1, edge2).normalize();
+                
+                stl += `  facet normal ${normal.x} ${normal.y} ${normal.z}\n`;
+                stl += '    outer loop\n';
+                stl += `      vertex ${v1.x} ${v1.y} ${v1.z}\n`;
+                stl += `      vertex ${v2.x} ${v2.y} ${v2.z}\n`;
+                stl += `      vertex ${v3.x} ${v3.y} ${v3.z}\n`;
+                stl += '    endloop\n';
+                stl += '  endfacet\n';
+            });
+            
+            stl += 'endsolid model\n';
+            return stl;
+        }
+        
+        function updateMeasurements(mesh, prefix = '') {
+            const bbox = new THREE.Box3().setFromObject(mesh);
+            const size = new THREE.Vector3();
+            bbox.getSize(size);
+            
+            const widthId = prefix ? `${prefix}WidthMeasure` : 'widthMeasure';
+            const depthId = prefix ? `${prefix}DepthMeasure` : 'depthMeasure';
+            const heightId = prefix ? `${prefix}HeightMeasure` : 'heightMeasure';
+            
+            document.getElementById(widthId).textContent = `${size.x.toFixed(1)} mm`;
+            document.getElementById(depthId).textContent = `${size.z.toFixed(1)} mm`;
+            document.getElementById(heightId).textContent = `${size.y.toFixed(1)} mm`;
+        }
+        
+        function clearMesh() {
+            if (currentMesh) {
+                scene.remove(currentMesh);
+                currentMesh.geometry.dispose();
+                currentMesh.material.dispose();
+                currentMesh = null;
+            }
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status-indicator ${type}`;
+        }
+        
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        
+        // Tab switching
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const tab = button.dataset.tab;
+                
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                button.classList.add('active');
+                document.getElementById(tab).classList.add('active');
+            });
+        });
+        
+        // STL Generator - Image Upload
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const imagePreview = document.getElementById('imagePreview');
+        
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleImageUpload(file);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleImageUpload(file);
+            }
+        });
+        
+        function handleImageUpload(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    imageData = img;
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                    document.getElementById('generateBtn').disabled = false;
+                    updateStatus('Image loaded! Click Generate to create 3D model.', 'success');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // Generate STL
+        document.getElementById('generateBtn').addEventListener('click', () => {
+            if (!imageData) return;
+            
+            updateStatus('Processing image... Please wait', 'info');
+            
+            setTimeout(() => {
+                try {
+                    // Process image with robust pipeline
+                    const processed = preprocessImage(imageData);
+                    
+                    // Extract outer contour only
+                    let contour = findOuterContour(processed);
+                    
+                    if (contour.length < 10) {
+                        updateStatus('Could not detect outline. Try a different image.', 'error');
+                        return;
+                    }
+                    
+                    // RDP simplification
+                    const perimeter = contour.length * 2;
+                    const epsilon = perimeter * 0.01;
+                    contour = simplifyRDP(contour, epsilon);
+                    
+                    // Chaikin smoothing
+                    contour = smoothChaikin(contour, 2);
+                    
+                    // Create mesh
+                    const depth = parseFloat(document.getElementById('extrusion').value);
+                    const scale = parseFloat(document.getElementById('modelScale').value);
+                    
+                    clearMesh();
+                    
+                    currentMesh = createWatertightMesh(contour, depth, scale);
+                    
+                    if (currentMesh) {
+                        scene.add(currentMesh);
+                        updateMeasurements(currentMesh);
+                        document.getElementById('exportBtn').disabled = false;
+                        updateStatus(`Model generated! ${contour.length} vertices`, 'success');
+                    } else {
+                        updateStatus('Failed to create model. Try adjusting settings.', 'error');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    updateStatus('Error generating model. Check console for details.', 'error');
+                }
+            }, 100);
+        });
+        
+        // Export STL
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            if (!currentMesh) return;
+            
+            const stl = exportSTL(currentMesh);
+            const blob = new Blob([stl], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `model_${Date.now()}.stl`;
+            link.click();
+            
+            URL.revokeObjectURL(url);
+            updateStatus('STL file downloaded!', 'success');
+        });
+        
+        // Cookie Cutter Upload
+        const cookieUploadZone = document.getElementById('cookieUploadZone');
+        const cookieImageInput = document.getElementById('cookieImageInput');
+        const cookiePreview = document.getElementById('cookiePreview');
+        
+        cookieUploadZone.addEventListener('click', () => cookieImageInput.click());
+        
+        cookieUploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            cookieUploadZone.classList.add('dragover');
+        });
+        
+        cookieUploadZone.addEventListener('dragleave', () => {
+            cookieUploadZone.classList.remove('dragover');
+        });
+        
+        cookieUploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            cookieUploadZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleCookieImageUpload(file);
+            }
+        });
+        
+        cookieImageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleCookieImageUpload(file);
+            }
+        });
+        
+        function handleCookieImageUpload(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    cookieImageData = img;
+                    cookiePreview.src = e.target.result;
+                    cookiePreview.style.display = 'block';
+                    document.getElementById('generateCookieBtn').disabled = false;
+                    updateStatus('Image loaded! Adjust settings and generate cookie cutter.', 'success');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // Generate Cookie Cutter
+        document.getElementById('generateCookieBtn').addEventListener('click', () => {
+            if (!cookieImageData) return;
+            
+            updateStatus('Generating cookie cutter... Please wait', 'info');
+            
+            setTimeout(() => {
+                try {
+                    const processed = preprocessImage(cookieImageData);
+                    let contour = findOuterContour(processed);
+                    
+                    if (contour.length < 10) {
+                        updateStatus('Could not detect outline. Try a different image.', 'error');
+                        return;
+                    }
+                    
+                    const perimeter = contour.length * 2;
+                    contour = simplifyRDP(contour, perimeter * 0.01);
+                    contour = smoothChaikin(contour, 3);
+                    
+                    // Get parameters
+                    const bladeThick = parseFloat(document.getElementById('bladeThick').value);
+                    const bladeHeight = parseFloat(document.getElementById('bladeHeight').value);
+                    const baseThick = parseFloat(document.getElementById('baseThick').value);
+                    const baseExt = parseFloat(document.getElementById('baseExt').value);
+                    const size = parseFloat(document.getElementById('cookieSize').value);
+                    const includeBase = document.getElementById('includeBase').checked;
+                    
+                    clearMesh();
+                    
+                    // Create cookie cutter mesh (simplified for now - just the shape)
+                    currentMesh = createWatertightMesh(contour, bladeHeight, (size / 50) * 100);
+                    
+                    if (currentMesh) {
+                        scene.add(currentMesh);
+                        updateMeasurements(currentMesh, 'cookie');
+                        document.getElementById('exportCookieBtn').disabled = false;
+                        updateStatus('Cookie cutter generated!', 'success');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    updateStatus('Error generating cookie cutter.', 'error');
+                }
+            }, 100);
+        });
+        
+        // Export Cookie Cutter
+        document.getElementById('exportCookieBtn').addEventListener('click', () => {
+            if (!currentMesh) return;
+            
+            const stl = exportSTL(currentMesh);
+            const blob = new Blob([stl], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `cookie_cutter_${Date.now()}.stl`;
+            link.click();
+            
+            URL.revokeObjectURL(url);
+            updateStatus('Cookie cutter STL downloaded!', 'success');
+        });
+        
+        // Viewer Controls
+        document.getElementById('toggleGrid').addEventListener('click', () => {
+            gridHelper.visible = !gridHelper.visible;
+        });
+        
+        document.getElementById('toggleRotate').addEventListener('click', function() {
+            autoRotating = !autoRotating;
+            this.textContent = `Auto-Rotate: ${autoRotating ? 'ON' : 'OFF'}`;
+        });
+        
+        document.getElementById('resetView').addEventListener('click', () => {
+            camera.position.set(0, 80, 120);
+            camera.lookAt(0, 0, 0);
+            if (currentMesh) {
+                currentMesh.rotation.set(0, 0, 0);
+            }
+        });
+        
+        // Rotation Buttons
+        const rotationStep = Math.PI / 6; // 30 degrees
+        
+        document.getElementById('rotYLeft').addEventListener('click', () => {
+            if (currentMesh) currentMesh.rotation.y -= rotationStep;
+        });
+        
+        document.getElementById('rotYRight').addEventListener('click', () => {
+            if (currentMesh) currentMesh.rotation.y += rotationStep;
+        });
+        
+        document.getElementById('rotXUp').addEventListener('click', () => {
+            if (currentMesh) currentMesh.rotation.x -= rotationStep;
+        });
+        
+        document.getElementById('rotXDown').addEventListener('click', () => {
+            if (currentMesh) currentMesh.rotation.x += rotationStep;
+        });
+        
+        document.getElementById('rotZLeft').addEventListener('click', () => {
+            if (currentMesh) currentMesh.rotation.z -= rotationStep;
+        });
+        
+        document.getElementById('rotZRight').addEventListener('click', () => {
+            if (currentMesh) currentMesh.rotation.z += rotationStep;
+        });
+        
+        // Slider Updates
+        document.getElementById('extrusion').addEventListener('input', (e) => {
+            document.getElementById('extrusionValue').textContent = `${e.target.value} mm`;
+        });
+        
+        document.getElementById('modelScale').addEventListener('input', (e) => {
+            document.getElementById('scaleValue').textContent = `${e.target.value}%`;
+        });
+        
+        document.getElementById('bladeThick').addEventListener('input', (e) => {
+            document.getElementById('bladeThickValue').textContent = `${e.target.value} mm`;
+        });
+        
+        document.getElementById('bladeHeight').addEventListener('input', (e) => {
+            document.getElementById('bladeHeightValue').textContent = `${e.target.value} mm`;
+        });
+        
+        document.getElementById('baseThick').addEventListener('input', (e) => {
+            document.getElementById('baseThickValue').textContent = `${e.target.value} mm`;
+        });
+        
+        document.getElementById('baseExt').addEventListener('input', (e) => {
+            document.getElementById('baseExtValue').textContent = `${e.target.value} mm`;
+        });
+        
+        document.getElementById('cookieSize').addEventListener('input', (e) => {
+            document.getElementById('cookieSizeValue').textContent = `${e.target.value} mm`;
+        });
+        
+        // Presets
+        document.getElementById('presetSmall').addEventListener('click', () => {
+            document.getElementById('cookieSize').value = 50;
+            document.getElementById('cookieSizeValue').textContent = '50 mm';
+            document.getElementById('bladeHeight').value = 15;
+            document.getElementById('bladeHeightValue').textContent = '15 mm';
+        });
+        
+        document.getElementById('presetMedium').addEventListener('click', () => {
+            document.getElementById('cookieSize').value = 80;
+            document.getElementById('cookieSizeValue').textContent = '80 mm';
+            document.getElementById('bladeHeight').value = 20;
+            document.getElementById('bladeHeightValue').textContent = '20 mm';
+        });
+        
+        document.getElementById('presetLarge').addEventListener('click', () => {
+            document.getElementById('cookieSize').value = 120;
+            document.getElementById('cookieSizeValue').textContent = '120 mm';
+            document.getElementById('bladeHeight').value = 25;
+            document.getElementById('bladeHeightValue').textContent = '25 mm';
+        });
+        
+        document.getElementById('presetStamp').addEventListener('click', () => {
+            document.getElementById('bladeThick').value = 2;
+            document.getElementById('bladeThickValue').textContent = '2 mm';
+            document.getElementById('bladeHeight').value = 5;
+            document.getElementById('bladeHeightValue').textContent = '5 mm';
+            document.getElementById('baseThick').value = 5;
+            document.getElementById('baseThickValue').textContent = '5 mm';
+            document.getElementById('includeBase').checked = true;
+            updateStatus('Stamp mode settings applied', 'success');
+        });
+        
+        document.getElementById('resetCookieBtn').addEventListener('click', () => {
+            document.getElementById('bladeThick').value = 1.2;
+            document.getElementById('bladeThickValue').textContent = '1.2 mm';
+            document.getElementById('bladeHeight').value = 20;
+            document.getElementById('bladeHeightValue').textContent = '20 mm';
+            document.getElementById('baseThick').value = 3;
+            document.getElementById('baseThickValue').textContent = '3 mm';
+            document.getElementById('baseExt').value = 10;
+            document.getElementById('baseExtValue').textContent = '10 mm';
+            document.getElementById('cookieSize').value = 80;
+            document.getElementById('cookieSizeValue').textContent = '80 mm';
+            document.getElementById('includeBase').checked = true;
+            updateStatus('Cookie cutter settings reset to defaults', 'info');
+        });
+        
+        // Initialize
+        initThreeJS();
+        updateStatus('Ready! Upload an image to begin.', 'info');
+    </script>
+</body>
+</html>
