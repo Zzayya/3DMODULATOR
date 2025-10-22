@@ -432,9 +432,10 @@
             <button class="tab-button" data-tab="cookie-cutter">Cookie Cutter</button>
         </div>
         
-        <!-- STL Generator Tab -->
-        <div class="tab-content active" id="stl-gen">
-            <div class="main-grid">
+        <!-- Tab Content Container -->
+        <div class="main-grid">
+            <!-- STL Generator Tab -->
+            <div class="tab-content active" id="stl-gen">
                 <div class="sidebar">
                     <div class="panel">
                         <h3>📁 Upload Image</h3>
@@ -506,42 +507,10 @@
                         </button>
                     </div>
                 </div>
-                
-                <div class="viewer-container">
-                    <div id="canvasContainer"></div>
-                    
-                    <div class="viewer-controls">
-                        <button class="secondary small" id="toggleGrid">Toggle Grid</button>
-                        <button class="secondary small" id="toggleRotate">Auto-Rotate: OFF</button>
-                        <button class="secondary small" id="resetView">Reset View</button>
-                    </div>
-                    
-                    <div class="rotation-controls">
-                        <h4>Rotate Model</h4>
-                        <div class="rotation-row">
-                            <button class="small" id="rotYLeft">← Y</button>
-                            <button class="small" id="rotYRight">Y →</button>
-                        </div>
-                        <div class="rotation-row">
-                            <button class="small" id="rotXUp">↑ X</button>
-                            <button class="small" id="rotXDown">X ↓</button>
-                        </div>
-                        <div class="rotation-row">
-                            <button class="small" id="rotZLeft">⤹ Z</button>
-                            <button class="small" id="rotZRight">Z ⤸</button>
-                        </div>
-                    </div>
-                    
-                    <div class="status-indicator" id="status">
-                        Upload an image to begin
-                    </div>
-                </div>
             </div>
-        </div>
         
-        <!-- Cookie Cutter Tab -->
-        <div class="tab-content" id="cookie-cutter">
-            <div class="main-grid">
+            <!-- Cookie Cutter Tab -->
+            <div class="tab-content" id="cookie-cutter">
                 <div class="sidebar">
                     <div class="panel">
                         <h3>📁 Upload Image</h3>
@@ -646,9 +615,36 @@
                         </button>
                     </div>
                 </div>
-                
-                <div class="viewer-container">
-                    <!-- Shares same canvas -->
+            </div>
+
+            <!-- Shared 3D Viewer (used by both tabs) -->
+            <div class="viewer-container">
+                <div id="canvasContainer"></div>
+
+                <div class="viewer-controls">
+                    <button class="secondary small" id="toggleGrid">Toggle Grid</button>
+                    <button class="secondary small" id="toggleRotate">Auto-Rotate: OFF</button>
+                    <button class="secondary small" id="resetView">Reset View</button>
+                </div>
+
+                <div class="rotation-controls">
+                    <h4>Rotate Model</h4>
+                    <div class="rotation-row">
+                        <button class="small" id="rotYLeft">← Y</button>
+                        <button class="small" id="rotYRight">Y →</button>
+                    </div>
+                    <div class="rotation-row">
+                        <button class="small" id="rotXUp">↑ X</button>
+                        <button class="small" id="rotXDown">X ↓</button>
+                    </div>
+                    <div class="rotation-row">
+                        <button class="small" id="rotZLeft">⤹ Z</button>
+                        <button class="small" id="rotZRight">Z ⤸</button>
+                    </div>
+                </div>
+
+                <div class="status-indicator" id="status">
+                    Upload an image to begin
                 </div>
             </div>
         </div>
@@ -1117,6 +1113,146 @@
             return smoothed;
         }
         
+        // Create cookie cutter geometry with thin blade walls
+        function createCookieCutterMesh(points, params, scale) {
+            if (points.length < 3) return null;
+
+            const { bladeThick, bladeHeight, baseThick, baseExt, includeBase } = params;
+
+            // Calculate bounds for centering
+            let minX = Infinity, maxX = -Infinity;
+            let minY = Infinity, maxY = -Infinity;
+
+            points.forEach(p => {
+                minX = Math.min(minX, p[0]);
+                maxX = Math.max(maxX, p[0]);
+                minY = Math.min(minY, p[1]);
+                maxY = Math.max(maxY, p[1]);
+            });
+
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            const size = Math.max(maxX - minX, maxY - minY);
+            const scaleFactor = (50 * scale / 100) / size;
+
+            // Create outer shape (cutting edge)
+            const outerShape = new THREE.Shape();
+            points.forEach((p, i) => {
+                const x = (p[0] - centerX) * scaleFactor;
+                const y = (p[1] - centerY) * scaleFactor;
+                if (i === 0) {
+                    outerShape.moveTo(x, y);
+                } else {
+                    outerShape.lineTo(x, y);
+                }
+            });
+            outerShape.lineTo((points[0][0] - centerX) * scaleFactor, (points[0][1] - centerY) * scaleFactor);
+
+            // Create inner shape (hollowed out interior) by offsetting inward
+            const innerPoints = offsetContour(points, -bladeThick);
+            if (innerPoints.length >= 3) {
+                const innerHole = new THREE.Path();
+                innerPoints.forEach((p, i) => {
+                    const x = (p[0] - centerX) * scaleFactor;
+                    const y = (p[1] - centerY) * scaleFactor;
+                    if (i === 0) {
+                        innerHole.moveTo(x, y);
+                    } else {
+                        innerHole.lineTo(x, y);
+                    }
+                });
+                innerHole.lineTo((innerPoints[0][0] - centerX) * scaleFactor, (innerPoints[0][1] - centerY) * scaleFactor);
+                outerShape.holes.push(innerHole);
+            }
+
+            // Create the blade (thin walls)
+            const bladeGeometry = new THREE.ExtrudeGeometry(outerShape, {
+                depth: bladeHeight,
+                bevelEnabled: false,
+                steps: 1,
+                curveSegments: 12
+            });
+
+            const group = new THREE.Group();
+
+            // Add blade mesh
+            const bladeMaterial = new THREE.MeshPhongMaterial({
+                color: 0x667eea,
+                specular: 0x444444,
+                shininess: 80,
+                side: THREE.DoubleSide
+            });
+            const bladeMesh = new THREE.Mesh(bladeGeometry, bladeMaterial);
+            bladeMesh.rotateX(-Math.PI / 2);
+            group.add(bladeMesh);
+
+            // Add base/handle if enabled
+            if (includeBase && baseThick > 0) {
+                // Create base shape (extends beyond blade)
+                const baseShape = new THREE.Shape();
+                points.forEach((p, i) => {
+                    const x = (p[0] - centerX) * scaleFactor;
+                    const y = (p[1] - centerY) * scaleFactor;
+                    // Scale outward for base extension
+                    const scale = 1 + (baseExt / (size * scaleFactor));
+                    if (i === 0) {
+                        baseShape.moveTo(x * scale, y * scale);
+                    } else {
+                        baseShape.lineTo(x * scale, y * scale);
+                    }
+                });
+                baseShape.lineTo((points[0][0] - centerX) * scaleFactor * (1 + baseExt / (size * scaleFactor)),
+                                 (points[0][1] - centerY) * scaleFactor * (1 + baseExt / (size * scaleFactor)));
+
+                const baseGeometry = new THREE.ExtrudeGeometry(baseShape, {
+                    depth: baseThick,
+                    bevelEnabled: false,
+                    steps: 1
+                });
+
+                const baseMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x764ba2,
+                    specular: 0x444444,
+                    shininess: 80,
+                    side: THREE.DoubleSide
+                });
+                const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+                baseMesh.rotateX(-Math.PI / 2);
+                baseMesh.position.y = bladeHeight;
+                group.add(baseMesh);
+            }
+
+            return group;
+        }
+
+        // Simple contour offset function (inward)
+        function offsetContour(points, offset) {
+            // This is a simplified offset - for production use a proper offset algorithm
+            // For now, scale toward centroid
+            if (points.length < 3) return [];
+
+            let cx = 0, cy = 0;
+            points.forEach(p => {
+                cx += p[0];
+                cy += p[1];
+            });
+            cx /= points.length;
+            cy /= points.length;
+
+            return points.map(p => {
+                const dx = p[0] - cx;
+                const dy = p[1] - cy;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < Math.abs(offset)) return [cx, cy]; // Point too close to center
+                const factor = (dist + offset) / dist;
+                return [cx + dx * factor, cy + dy * factor];
+            }).filter(p => {
+                const dx = p[0] - cx;
+                const dy = p[1] - cy;
+                return Math.sqrt(dx * dx + dy * dy) > 0.1; // Remove degenerate points
+            });
+        }
+
         // Create watertight 3D mesh
         function createWatertightMesh(points, depth, scale) {
             if (points.length < 3) return null;
@@ -1174,53 +1310,73 @@
             return new THREE.Mesh(geometry, material);
         }
         
-        // STL Export
-        function exportSTL(mesh) {
-            const geometry = mesh.geometry;
-            const position = geometry.attributes.position;
-            const index = geometry.index;
-            
+        // STL Export - handles both single meshes and groups
+        function exportSTL(meshOrGroup) {
             let stl = 'solid model\n';
-            
-            const vertices = [];
-            for (let i = 0; i < position.count; i++) {
-                vertices.push(new THREE.Vector3(
-                    position.getX(i),
-                    position.getY(i),
-                    position.getZ(i)
-                ));
-            }
-            
-            const faces = [];
-            if (index) {
-                for (let i = 0; i < index.count; i += 3) {
-                    faces.push([index.getX(i), index.getX(i + 1), index.getX(i + 2)]);
-                }
+
+            // Collect all meshes (handle groups and single meshes)
+            const meshes = [];
+            if (meshOrGroup.type === 'Group') {
+                meshOrGroup.children.forEach(child => {
+                    if (child.geometry) meshes.push(child);
+                });
             } else {
-                for (let i = 0; i < vertices.length; i += 3) {
-                    faces.push([i, i + 1, i + 2]);
-                }
+                meshes.push(meshOrGroup);
             }
-            
-            faces.forEach(face => {
-                const v1 = vertices[face[0]];
-                const v2 = vertices[face[1]];
-                const v3 = vertices[face[2]];
-                
-                const normal = new THREE.Vector3();
-                const edge1 = new THREE.Vector3().subVectors(v2, v1);
-                const edge2 = new THREE.Vector3().subVectors(v3, v1);
-                normal.crossVectors(edge1, edge2).normalize();
-                
-                stl += `  facet normal ${normal.x} ${normal.y} ${normal.z}\n`;
-                stl += '    outer loop\n';
-                stl += `      vertex ${v1.x} ${v1.y} ${v1.z}\n`;
-                stl += `      vertex ${v2.x} ${v2.y} ${v2.z}\n`;
-                stl += `      vertex ${v3.x} ${v3.y} ${v3.z}\n`;
-                stl += '    endloop\n';
-                stl += '  endfacet\n';
+
+            // Export each mesh
+            meshes.forEach(mesh => {
+                const geometry = mesh.geometry;
+                const position = geometry.attributes.position;
+                const index = geometry.index;
+
+                // Apply mesh transformations
+                const worldMatrix = new THREE.Matrix4();
+                mesh.updateMatrixWorld(true);
+                worldMatrix.copy(mesh.matrixWorld);
+
+                const vertices = [];
+                for (let i = 0; i < position.count; i++) {
+                    const vertex = new THREE.Vector3(
+                        position.getX(i),
+                        position.getY(i),
+                        position.getZ(i)
+                    );
+                    vertex.applyMatrix4(worldMatrix);
+                    vertices.push(vertex);
+                }
+
+                const faces = [];
+                if (index) {
+                    for (let i = 0; i < index.count; i += 3) {
+                        faces.push([index.getX(i), index.getX(i + 1), index.getX(i + 2)]);
+                    }
+                } else {
+                    for (let i = 0; i < vertices.length; i += 3) {
+                        faces.push([i, i + 1, i + 2]);
+                    }
+                }
+
+                faces.forEach(face => {
+                    const v1 = vertices[face[0]];
+                    const v2 = vertices[face[1]];
+                    const v3 = vertices[face[2]];
+
+                    const normal = new THREE.Vector3();
+                    const edge1 = new THREE.Vector3().subVectors(v2, v1);
+                    const edge2 = new THREE.Vector3().subVectors(v3, v1);
+                    normal.crossVectors(edge1, edge2).normalize();
+
+                    stl += `  facet normal ${normal.x} ${normal.y} ${normal.z}\n`;
+                    stl += '    outer loop\n';
+                    stl += `      vertex ${v1.x} ${v1.y} ${v1.z}\n`;
+                    stl += `      vertex ${v2.x} ${v2.y} ${v2.z}\n`;
+                    stl += `      vertex ${v3.x} ${v3.y} ${v3.z}\n`;
+                    stl += '    endloop\n';
+                    stl += '  endfacet\n';
+                });
             });
-            
+
             stl += 'endsolid model\n';
             return stl;
         }
@@ -1242,8 +1398,18 @@
         function clearMesh() {
             if (currentMesh) {
                 scene.remove(currentMesh);
-                currentMesh.geometry.dispose();
-                currentMesh.material.dispose();
+
+                // Handle both single meshes and groups
+                if (currentMesh.type === 'Group') {
+                    currentMesh.children.forEach(child => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) child.material.dispose();
+                    });
+                } else {
+                    if (currentMesh.geometry) currentMesh.geometry.dispose();
+                    if (currentMesh.material) currentMesh.material.dispose();
+                }
+
                 currentMesh = null;
             }
         }
@@ -1437,23 +1603,23 @@
         // Generate Cookie Cutter
         document.getElementById('generateCookieBtn').addEventListener('click', () => {
             if (!cookieImageData) return;
-            
+
             updateStatus('Generating cookie cutter... Please wait', 'info');
-            
+
             setTimeout(() => {
                 try {
                     const processed = preprocessImage(cookieImageData);
                     let contour = findOuterContour(processed);
-                    
+
                     if (contour.length < 10) {
                         updateStatus('Could not detect outline. Try a different image.', 'error');
                         return;
                     }
-                    
+
                     const perimeter = contour.length * 2;
                     contour = simplifyRDP(contour, perimeter * 0.01);
                     contour = smoothChaikin(contour, 3);
-                    
+
                     // Get parameters
                     const bladeThick = parseFloat(document.getElementById('bladeThick').value);
                     const bladeHeight = parseFloat(document.getElementById('bladeHeight').value);
@@ -1461,17 +1627,25 @@
                     const baseExt = parseFloat(document.getElementById('baseExt').value);
                     const size = parseFloat(document.getElementById('cookieSize').value);
                     const includeBase = document.getElementById('includeBase').checked;
-                    
+
+                    const params = {
+                        bladeThick,
+                        bladeHeight,
+                        baseThick,
+                        baseExt,
+                        includeBase
+                    };
+
                     clearMesh();
-                    
-                    // Create cookie cutter mesh (simplified for now - just the shape)
-                    currentMesh = createWatertightMesh(contour, bladeHeight, (size / 50) * 100);
-                    
+
+                    // Create proper cookie cutter mesh with thin blade walls
+                    currentMesh = createCookieCutterMesh(contour, params, (size / 50) * 100);
+
                     if (currentMesh) {
                         scene.add(currentMesh);
                         updateMeasurements(currentMesh, 'cookie');
                         document.getElementById('exportCookieBtn').disabled = false;
-                        updateStatus('Cookie cutter generated!', 'success');
+                        updateStatus('Cookie cutter generated with thin blade walls!', 'success');
                     }
                 } catch (error) {
                     console.error(error);
